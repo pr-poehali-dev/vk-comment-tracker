@@ -2,9 +2,9 @@ import { useState } from 'react';
 import Icon from '@/components/ui/icon';
 
 export default function Settings() {
-  const [name, setName] = useState('Иван Петров');
+  const [name, setName] = useState('BSF');
   const [email, setEmail] = useState('ivan@example.com');
-  const [company, setCompany] = useState('SportBrand Co.');
+  const [company, setCompany] = useState('BSF');
   const [apiKey, setApiKey] = useState('vk1.a.XXXXXXXX-XXXX-XXXX-XXXX');
   const [timezone, setTimezone] = useState('Europe/Moscow');
   const [refreshInterval, setRefreshInterval] = useState('5');

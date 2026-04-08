@@ -91,11 +91,11 @@ function AppContent() {
         <div className="p-4 border-t border-border">
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-semibold font-mono">
-              ИП
+              BSF
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium truncate">Иван Петров</p>
-              <p className="text-[10px] text-muted-foreground truncate">SportBrand Co.</p>
+              <p className="text-xs font-medium truncate">BSF</p>
+              <p className="text-[10px] text-muted-foreground truncate">BSF</p>
             </div>
           </div>
         </div>
