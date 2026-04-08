@@ -7,11 +7,13 @@ import Monitor from '@/pages/Monitor';
 import Analytics from '@/pages/Analytics';
 import Notifications from '@/pages/Notifications';
 import Settings from '@/pages/Settings';
+import Groups from '@/pages/Groups';
 
-type Page = 'dashboard' | 'monitor' | 'analytics' | 'notifications' | 'settings';
+type Page = 'dashboard' | 'monitor' | 'analytics' | 'notifications' | 'settings' | 'groups';
 
 const nav: { id: Page; label: string; icon: string; badge?: string }[] = [
   { id: 'dashboard', label: 'Главная', icon: 'LayoutDashboard' },
+  { id: 'groups', label: 'Группы ВК', icon: 'Users' },
   { id: 'monitor', label: 'Мониторинг', icon: 'Activity', badge: 'Live' },
   { id: 'analytics', label: 'Аналитика', icon: 'BarChart2' },
   { id: 'notifications', label: 'Уведомления', icon: 'Bell' },
@@ -29,6 +31,7 @@ function AppContent() {
       case 'analytics': return <Analytics />;
       case 'notifications': return <Notifications />;
       case 'settings': return <Settings />;
+      case 'groups': return <Groups />;
     }
   };
 
