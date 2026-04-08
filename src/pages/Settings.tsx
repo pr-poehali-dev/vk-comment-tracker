@@ -10,7 +10,7 @@ export default function Settings() {
   const [company, setCompany] = useState('BSF');
   const [apiKey, setApiKey] = useState('vk1.a.XXXXXXXX-XXXX-XXXX-XXXX');
   const [timezone, setTimezone] = useState('Europe/Moscow');
-  const [refreshInterval, setRefreshInterval] = useState('5');
+  const [refreshInterval, setRefreshInterval] = useState(() => localStorage.getItem('monitor_interval') || '5');
   const [saved, setSaved] = useState(false);
 
   const [tgUsername, setTgUsername] = useState('vrrser');
@@ -50,6 +50,9 @@ export default function Settings() {
   };
 
   const save = () => {
+    localStorage.setItem('monitor_interval', refreshInterval);
+    // Уведомляем useAutoFetch об изменении интервала
+    window.dispatchEvent(new StorageEvent('storage', { key: 'monitor_interval', newValue: refreshInterval }));
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
   };

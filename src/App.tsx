@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Icon from '@/components/ui/icon';
@@ -8,6 +8,62 @@ import Analytics from '@/pages/Analytics';
 import Notifications from '@/pages/Notifications';
 import Settings from '@/pages/Settings';
 import Groups from '@/pages/Groups';
+
+const FETCH_URL = 'https://functions.poehali.dev/1ba8f77d-759f-4bd4-bfc3-bd43b661451d';
+
+function useAutoFetch() {
+  const [lastRun, setLastRun] = useState<Date | null>(() => {
+    const s = localStorage.getItem('monitor_last_run');
+    return s ? new Date(s) : null;
+  });
+  const [running, setRunning] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const runningRef = useRef(false);
+
+  const runFetch = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    setRunning(true);
+    try {
+      await fetch(`${FETCH_URL}/fetch`, { method: 'POST' });
+      const now = new Date();
+      setLastRun(now);
+      localStorage.setItem('monitor_last_run', now.toISOString());
+    } catch {
+      // silent
+    } finally {
+      runningRef.current = false;
+      setRunning(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const getIntervalMs = () => {
+      const v = localStorage.getItem('monitor_interval') || '5';
+      return parseInt(v) * 60 * 1000;
+    };
+
+    const start = () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      intervalRef.current = setInterval(runFetch, getIntervalMs());
+    };
+
+    runFetch();
+    start();
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'monitor_interval') start();
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [runFetch]);
+
+  return { lastRun, running };
+}
 
 type Page = 'dashboard' | 'monitor' | 'analytics' | 'notifications' | 'settings' | 'groups';
 
@@ -23,6 +79,7 @@ const nav: { id: Page; label: string; icon: string; badge?: string }[] = [
 function AppContent() {
   const [page, setPage] = useState<Page>('dashboard');
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { lastRun, running } = useAutoFetch();
 
   const renderPage = () => {
     switch (page) {
@@ -33,6 +90,11 @@ function AppContent() {
       case 'settings': return <Settings />;
       case 'groups': return <Groups />;
     }
+  };
+
+  const formatLastRun = () => {
+    if (!lastRun) return null;
+    return lastRun.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
@@ -53,8 +115,10 @@ function AppContent() {
             <div>
               <span className="text-sm font-semibold tracking-tight">Комментарий</span>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot inline-block" />
-                <span className="text-[10px] text-muted-foreground font-mono">live</span>
+                <span className={`w-1.5 h-1.5 rounded-full inline-block ${running ? 'bg-amber-400 animate-pulse' : 'bg-emerald-500 animate-pulse-dot'}`} />
+                <span className="text-[10px] text-muted-foreground font-mono">
+                  {running ? 'сбор...' : formatLastRun() ? `обн. ${formatLastRun()}` : 'live'}
+                </span>
               </div>
             </div>
           </div>
@@ -74,7 +138,7 @@ function AppContent() {
                 }
               `}
             >
-              <Icon name={item.icon as any} size={16} className="shrink-0" />
+              <Icon name={item.icon as keyof typeof import('lucide-react')} size={16} className="shrink-0" />
               <span className="flex-1">{item.label}</span>
               {item.badge && (
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium ${
