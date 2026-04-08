@@ -23,8 +23,8 @@ export default function Notifications() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`${API}/keywords`).then(r => r.json()).catch(() => []),
-      fetch(`${API}/notify`).then(r => r.json()).catch(() => ({})),
+      fetch(`${API}?action=keywords_list`).then(r => r.json()).catch(() => []),
+      fetch(`${API}?action=notify_get`).then(r => r.json()).catch(() => ({})),
     ]).then(([kws, notify]) => {
       if (Array.isArray(kws)) setKeywords(kws);
       if (notify && typeof notify === 'object') {
@@ -37,28 +37,28 @@ export default function Notifications() {
 
   const toggleKeyword = async (kw: KeywordItem) => {
     setKeywords(prev => prev.map(k => k.id === kw.id ? { ...k, active: !k.active } : k));
-    await fetch(`${API}/keywords`, {
-      method: 'PATCH',
+    await fetch(API, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: kw.id, active: !kw.active }),
+      body: JSON.stringify({ action: 'keywords_toggle', id: kw.id, active: !kw.active }),
     });
   };
 
   const removeKeyword = async (id: number) => {
     setKeywords(prev => prev.filter(k => k.id !== id));
-    await fetch(`${API}/keywords`, {
-      method: 'DELETE',
+    await fetch(API, {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ action: 'keywords_delete', id }),
     });
   };
 
   const addKeyword = async () => {
     if (!newWord.trim()) return;
-    const res = await fetch(`${API}/keywords`, {
+    const res = await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ word: newWord.trim() }),
+      body: JSON.stringify({ action: 'keywords_add', word: newWord.trim() }),
     });
     const data = await res.json();
     if (data.id) {
@@ -72,10 +72,10 @@ export default function Notifications() {
 
   const saveNotifySettings = async () => {
     setSaving(true);
-    await fetch(`${API}/notify`, {
+    await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tg_chat_id: tgChatId, tg_enabled: tgEnabled, min_mentions: minMentions }),
+      body: JSON.stringify({ action: 'notify_save', tg_chat_id: tgChatId, tg_enabled: tgEnabled, min_mentions: minMentions }),
     });
     setSaving(false);
     setSaved(true);
@@ -150,24 +150,21 @@ export default function Notifications() {
         </div>
         <div className="px-6 py-5 space-y-5">
 
-          {/* Toggle */}
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">Мгновенные уведомления</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {tgChatId ? `Подключено · chat_id: ${tgChatId}` : 'Настройте аккаунт в разделе Настройки'}
+                {tgChatId ? `Подключено · chat_id: ${tgChatId}` : 'Не подключено'}
               </p>
             </div>
             <button
               onClick={() => setTgEnabled(v => !v)}
-              disabled={!tgChatId}
-              className={`w-9 h-5 rounded-full transition-colors relative shrink-0 disabled:opacity-40 ${tgEnabled ? 'bg-primary' : 'bg-muted'}`}
+              className={`w-9 h-5 rounded-full transition-colors relative shrink-0 ${tgEnabled ? 'bg-primary' : 'bg-muted'}`}
             >
               <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${tgEnabled ? 'left-4' : 'left-0.5'}`} />
             </button>
           </div>
 
-          {/* Min mentions */}
           <div>
             <label className="text-sm font-medium mb-2.5 flex items-center justify-between">
               Мин. упоминаний для оповещения
@@ -183,7 +180,6 @@ export default function Notifications() {
             </div>
           </div>
 
-          {/* Save */}
           <div className="flex items-center gap-3 pt-1">
             <button
               onClick={saveNotifySettings}

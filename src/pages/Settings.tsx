@@ -34,10 +34,10 @@ export default function Settings() {
         setTgChatId(data.chat_id);
         setTgStatus('ok');
         // Сохраняем chat_id в БД для автоматических уведомлений
-        await fetch(`${SETTINGS_API}/notify`, {
+        await fetch(SETTINGS_API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tg_chat_id: data.chat_id }),
+          body: JSON.stringify({ action: 'notify_save', tg_chat_id: data.chat_id, tg_enabled: true }),
         });
       } else {
         setTgError(data.error || 'Ошибка');

@@ -1,11 +1,11 @@
 """
-Управление ключевыми словами и настройками уведомлений. v2
-GET /keywords — список ключевых слов
-POST /keywords — добавить слово (body: {word})
-PATCH /keywords — обновить слово (body: {id, active})
-DELETE /keywords — удалить слово (body: {id})
-GET /notify — настройки уведомлений
-POST /notify — сохранить настройки (body: {tg_chat_id, tg_enabled, min_mentions})
+Управление ключевыми словами и настройками уведомлений. v3
+action=keywords_list — список ключевых слов
+action=keywords_add — добавить слово (body: {word})
+action=keywords_toggle — переключить (body: {id, active})
+action=keywords_delete — удалить (body: {id})
+action=notify_get — настройки уведомлений
+action=notify_save — сохранить (body: {tg_chat_id, tg_enabled, min_mentions})
 """
 
 import os
@@ -16,7 +16,7 @@ SCHEMA = os.environ.get("MAIN_DB_SCHEMA", "t_p94871206_vk_comment_tracker")
 
 CORS = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
 }
 
@@ -28,76 +28,65 @@ def get_conn():
 def handler(event: dict, context) -> dict:
     """Ключевые слова и настройки уведомлений."""
     method = event.get("httpMethod", "GET")
-    path = event.get("path", "/")
 
     if method == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
-    # --- KEYWORDS ---
-    if path.endswith("/keywords"):
+    params = event.get("queryStringParameters") or {}
+    body = json.loads(event.get("body") or "{}")
+    action = params.get("action") or body.get("action", "")
 
-        if method == "GET":
-            conn = get_conn()
-            cur = conn.cursor()
+    conn = get_conn()
+    cur = conn.cursor()
+
+    try:
+        # --- keywords_list ---
+        if action == "keywords_list":
             cur.execute(f"SELECT id, word, active, hits FROM {SCHEMA}.keywords ORDER BY id")
             rows = cur.fetchall()
-            conn.close()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps(
                 [{"id": r[0], "word": r[1], "active": r[2], "hits": r[3]} for r in rows],
                 ensure_ascii=False
             )}
 
-        body = json.loads(event.get("body") or "{}")
-
-        if method == "POST":
+        # --- keywords_add ---
+        if action == "keywords_add":
             word = body.get("word", "").strip()
             if not word:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "word required"})}
-            conn = get_conn()
-            cur = conn.cursor()
             cur.execute(
                 f"INSERT INTO {SCHEMA}.keywords (word) VALUES (%s) ON CONFLICT (word) DO UPDATE SET active=TRUE RETURNING id, word, active, hits",
                 (word,)
             )
             row = cur.fetchone()
             conn.commit()
-            conn.close()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps(
                 {"id": row[0], "word": row[1], "active": row[2], "hits": row[3]}
             )}
 
-        if method == "PATCH":
+        # --- keywords_toggle ---
+        if action == "keywords_toggle":
             kw_id = body.get("id")
             active = body.get("active")
             if kw_id is None or active is None:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "id and active required"})}
-            conn = get_conn()
-            cur = conn.cursor()
             cur.execute(f"UPDATE {SCHEMA}.keywords SET active=%s WHERE id=%s", (active, kw_id))
             conn.commit()
-            conn.close()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
-        if method == "DELETE":
+        # --- keywords_delete ---
+        if action == "keywords_delete":
             kw_id = body.get("id")
             if not kw_id:
                 return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "id required"})}
-            conn = get_conn()
-            cur = conn.cursor()
             cur.execute(f"DELETE FROM {SCHEMA}.keywords WHERE id=%s", (kw_id,))
             conn.commit()
-            conn.close()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
-    # --- NOTIFY SETTINGS ---
-    if path.endswith("/notify"):
-
-        if method == "GET":
-            conn = get_conn()
-            cur = conn.cursor()
+        # --- notify_get ---
+        if action == "notify_get":
             cur.execute(f"SELECT key, value FROM {SCHEMA}.settings WHERE key IN ('tg_chat_id', 'tg_enabled', 'min_mentions')")
             rows = cur.fetchall()
-            conn.close()
             s = {r[0]: r[1] for r in rows}
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({
                 "tg_chat_id": s.get("tg_chat_id"),
@@ -105,10 +94,8 @@ def handler(event: dict, context) -> dict:
                 "min_mentions": int(s.get("min_mentions") or 1),
             })}
 
-        if method == "POST":
-            body = json.loads(event.get("body") or "{}")
-            conn = get_conn()
-            cur = conn.cursor()
+        # --- notify_save ---
+        if action == "notify_save":
             if "tg_chat_id" in body:
                 cur.execute(f"INSERT INTO {SCHEMA}.settings (key, value) VALUES ('tg_chat_id', %s) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value", (str(body["tg_chat_id"]) if body["tg_chat_id"] else None,))
             if "tg_enabled" in body:
@@ -116,7 +103,9 @@ def handler(event: dict, context) -> dict:
             if "min_mentions" in body:
                 cur.execute(f"INSERT INTO {SCHEMA}.settings (key, value) VALUES ('min_mentions', %s) ON CONFLICT (key) DO UPDATE SET value=EXCLUDED.value", (str(int(body["min_mentions"])),))
             conn.commit()
-            conn.close()
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": True})}
 
-    return {"statusCode": 405, "headers": CORS, "body": json.dumps({"error": "Method not allowed"})}
+        return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Unknown action"})}
+
+    finally:
+        conn.close()
