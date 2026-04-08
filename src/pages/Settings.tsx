@@ -24,10 +24,10 @@ export default function Settings() {
     setTgStatus('sending');
     setTgError('');
     try {
-      const res = await fetch(`${TG_API}/test`, {
+      const res = await fetch(TG_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username }),
+        body: JSON.stringify({ action: 'test', username }),
       });
       const data = JSON.parse(await res.text());
       if (data.ok) {

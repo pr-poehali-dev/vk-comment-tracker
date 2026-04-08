@@ -1,15 +1,13 @@
 """
 Telegram-уведомления: привязка аккаунта и отправка сообщений.
-POST /resolve — получить chat_id по username (@vrrser)
-POST /send — отправить уведомление (body: {chat_id, message})
-POST /test — тестовое сообщение по username
-GET /status — проверить, настроен ли бот
+POST / {action: "test", username} — тестовое сообщение
+POST / {action: "send", chat_id, message} — отправить уведомление
+POST / {action: "status"} — проверить бота
 """
 
 import os
 import json
 import urllib.request
-import urllib.parse
 
 BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TG_API = "https://api.telegram.org"
@@ -30,25 +28,27 @@ def tg(method: str, params: dict) -> dict:
 
 
 def send_message(chat_id, text: str) -> dict:
-    return tg("sendMessage", {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "HTML",
-    })
+    return tg("sendMessage", {"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
 
 
 def handler(event: dict, context) -> dict:
     """Telegram-интеграция: привязка аккаунта и отправка уведомлений."""
     method = event.get("httpMethod", "GET")
-    path = event.get("path", "/")
 
     if method == "OPTIONS":
         return {"statusCode": 200, "headers": CORS, "body": ""}
 
-    # GET /status — проверка токена
-    if method == "GET" and path.endswith("/status"):
-        if not BOT_TOKEN:
-            return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": False, "error": "Токен бота не настроен"})}
+    if method != "POST":
+        return {"statusCode": 405, "headers": CORS, "body": json.dumps({"error": "Method not allowed"})}
+
+    if not BOT_TOKEN:
+        return {"statusCode": 400, "headers": CORS, "body": json.dumps({"ok": False, "error": "Токен бота не настроен"})}
+
+    body = json.loads(event.get("body") or "{}")
+    action = body.get("action", "")
+
+    # status — проверить бота
+    if action == "status":
         try:
             me = tg("getMe", {})
             if me.get("ok"):
@@ -62,15 +62,10 @@ def handler(event: dict, context) -> dict:
         except Exception as e:
             return {"statusCode": 200, "headers": CORS, "body": json.dumps({"ok": False, "error": str(e)})}
 
-    body = json.loads(event.get("body") or "{}")
-
-    # POST /test — отправить тестовое сообщение напрямую пользователю по username
-    if method == "POST" and path.endswith("/test"):
-        username = body.get("username", "").lstrip("@").strip()
+    # test — отправить тестовое сообщение по username
+    if action == "test":
+        username = body.get("username", "").replace("@", "").strip()
         chat_id = body.get("chat_id")
-
-        if not BOT_TOKEN:
-            return {"statusCode": 400, "headers": CORS, "body": json.dumps({"ok": False, "error": "Токен бота не настроен"})}
 
         if not chat_id and not username:
             return {"statusCode": 400, "headers": CORS, "body": json.dumps({"ok": False, "error": "Укажите username или chat_id"})}
@@ -90,11 +85,11 @@ def handler(event: dict, context) -> dict:
         except Exception as e:
             err = str(e)
             if "chat not found" in err.lower():
-                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"ok": False, "error": f"Пользователь @{username} не найден. Убедитесь, что вы написали боту хотя бы одно сообщение."})}
+                return {"statusCode": 400, "headers": CORS, "body": json.dumps({"ok": False, "error": f"Пользователь @{username} не найден. Напишите боту /start и попробуйте снова."})}
             return {"statusCode": 400, "headers": CORS, "body": json.dumps({"ok": False, "error": err})}
 
-    # POST /send — отправить уведомление
-    if method == "POST" and path.endswith("/send"):
+    # send — отправить сообщение
+    if action == "send":
         chat_id = body.get("chat_id")
         message = body.get("message", "")
         if not chat_id or not message:
@@ -105,4 +100,4 @@ def handler(event: dict, context) -> dict:
         except Exception as e:
             return {"statusCode": 500, "headers": CORS, "body": json.dumps({"error": str(e)})}
 
-    return {"statusCode": 405, "headers": CORS, "body": json.dumps({"error": "Method not allowed"})}
+    return {"statusCode": 400, "headers": CORS, "body": json.dumps({"error": "Unknown action"})}
