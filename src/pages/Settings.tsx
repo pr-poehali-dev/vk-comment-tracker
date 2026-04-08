@@ -27,7 +27,7 @@ export default function Settings() {
       const res = await fetch(TG_API, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'test', username }),
+        body: JSON.stringify({ action: 'test', username, chat_id: 8798783497 }),
       });
       const data = JSON.parse(await res.text());
       if (data.ok) {
